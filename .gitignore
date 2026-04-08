@@ -1,0 +1,33 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+
+# Node
+node_modules/
+
+# Data files (too large for git)
+data/
+*.db
+*.db-shm
+*.db-wal
+
+# IDE / editor
+.idea/
+.vscode/
+*.sublime-workspace
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Claude Code
+.claude/
+CLAUDE.md
+
+# Specs (copyrighted reference docs)
+specs/
+
+# Misc
+notes

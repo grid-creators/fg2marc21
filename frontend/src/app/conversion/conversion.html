@@ -1,0 +1,229 @@
+<div class="conversion-container">
+  <!-- Header / Input -->
+  <header class="input-section">
+    <h1>FactGrid &rarr; GND Konvertierung</h1>
+    <div class="source-toggle">
+      <label class="source-label">Datenquelle:</label>
+      <label class="radio-option">
+        <input type="radio" name="dataSource" value="server" [(ngModel)]="dataSource" />
+        FactGrid Server
+      </label>
+      <label class="radio-option">
+        <input type="radio" name="dataSource" value="local" [(ngModel)]="dataSource" />
+        Lokale Datenbank
+      </label>
+    </div>
+    <div class="source-toggle">
+      <label class="source-label">079 $q Teilbestandskennzeichen:</label>
+      <select [(ngModel)]="field079q" class="select-079q">
+        @for (opt of field079qOptions; track opt.value) {
+          <option [value]="opt.value">{{ opt.label }}</option>
+        }
+      </select>
+    </div>
+    <div class="source-toggle">
+      <label class="source-label">400 Quellen:</label>
+      <label class="checkbox-option">
+        <input type="checkbox" [(ngModel)]="field400Sources.aliases" />
+        Aliases
+      </label>
+      <label class="checkbox-option">
+        <input type="checkbox" [(ngModel)]="field400Sources.labels" />
+        Labels
+      </label>
+      <label class="checkbox-option">
+        <input type="checkbox" [(ngModel)]="field400Sources.p34" />
+        P34
+      </label>
+    </div>
+    <div class="source-toggle">
+      <label class="source-label">667 $a Redaktionelle Bemerkung:</label>
+      <input
+        type="text"
+        [(ngModel)]="field667a"
+        class="input-667a"
+        placeholder="z.B. Historisches Datenzentrum Sachsen-Anhalt"
+      />
+    </div>
+    <div class="input-row">
+      <textarea
+        [(ngModel)]="qidInput"
+        placeholder="QIDs eingeben (eine pro Zeile, komma- oder leerzeichengetrennt)&#10;z.B. Q409, Q1000, Q100000"
+        rows="3"
+      ></textarea>
+      <button (click)="convert()" [disabled]="loading" class="btn-primary">
+        @if (loading) {
+          Konvertiere...
+        } @else {
+          Konvertieren
+        }
+      </button>
+    </div>
+    @if (loadingProgress) {
+      <div class="loading-info">{{ loadingProgress }}</div>
+    }
+    @if (errors.length > 0) {
+      <div class="error-list">
+        @for (err of errors; track err.qid) {
+          <div class="error-item">{{ err.qid }}: {{ err.error }}</div>
+        }
+      </div>
+    }
+  </header>
+
+  @if (records.length > 0) {
+    <div class="main-content">
+      <!-- Sidebar: Record list -->
+      <aside class="record-list">
+        <h3>Personen ({{ records.length }})</h3>
+        @for (record of records; track record.qid; let i = $index) {
+          <div
+            class="record-item"
+            [class.selected]="i === selectedIndex"
+            (click)="selectRecord(i)"
+          >
+            <span class="status-dot" [ngClass]="getStatusIcon(record)"></span>
+            <div class="record-info">
+              <span class="record-qid">{{ record.qid }}</span>
+              <span class="record-label">{{ record.label }}</span>
+            </div>
+            <span class="status-badge" [ngClass]="getStatusIcon(record)">
+              {{ getStatusLabel(record) }}
+            </span>
+          </div>
+        }
+      </aside>
+
+      <!-- Main: Record editor -->
+      @if (selectedRecord) {
+        <main class="record-editor">
+          <h2>{{ selectedRecord.qid }}: {{ selectedRecord.label }}</h2>
+
+          <!-- Validation -->
+          <section class="validation-section">
+            <h3>Validierung</h3>
+            <div class="validation-summary">
+              <div class="validation-stat">
+                <span>Individualisierung:</span>
+                <strong [class.val-ok]="selectedRecord.validation.individualization_count >= 3"
+                        [class.val-warn]="selectedRecord.validation.individualization_count < 3">
+                  {{ selectedRecord.validation.individualization_count }}/3
+                </strong>
+                (Gruppe 1: {{ selectedRecord.validation.group1_count }}/1)
+              </div>
+            </div>
+            @if (selectedRecord.validation.warnings.length > 0) {
+              <ul class="warning-list">
+                @for (w of selectedRecord.validation.warnings; track w) {
+                  <li class="warning-item" [class.warning-clickable]="getWarningTag(w)" (click)="scrollToWarning(w)">{{ w }}</li>
+                }
+              </ul>
+            } @else {
+              <div class="validation-ok">Alle Anforderungen erfuellt.</div>
+            }
+          </section>
+
+          <!-- Control fields -->
+          <section class="field-section">
+            <h3>Kontrollfelder</h3>
+            <div class="control-fields">
+              @for (cf of selectedRecord.controlfields; track cf.tag) {
+                <div class="control-field-row" [id]="'field-' + cf.tag">
+                  <label class="tag-label">{{ cf.tag }}</label>
+                  @if (cf.tag === '001' || cf.tag === '003') {
+                    <input type="text" [value]="cf.value" disabled class="field-input readonly" />
+                  } @else {
+                    <input
+                      type="text"
+                      [(ngModel)]="cf.value"
+                      (change)="onControlFieldChange()"
+                      class="field-input"
+                    />
+                  }
+                </div>
+              }
+            </div>
+          </section>
+
+          <!-- Data fields -->
+          <section class="field-section">
+            <h3>
+              Datenfelder
+              <button class="btn-small" (click)="toggleAddField()">
+                @if (showAddField) { Abbrechen } @else { + Feld hinzufuegen }
+              </button>
+            </h3>
+
+            @if (showAddField) {
+              <div class="add-field-form">
+                <div class="add-field-row">
+                  <label>Tag:</label>
+                  <input type="text" [(ngModel)]="newFieldTag" maxlength="3" placeholder="z.B. 550" class="input-tag" />
+                  <label>Ind1:</label>
+                  <input type="text" [(ngModel)]="newFieldInd1" maxlength="1" class="input-ind" />
+                  <label>Ind2:</label>
+                  <input type="text" [(ngModel)]="newFieldInd2" maxlength="1" class="input-ind" />
+                  <label>$</label>
+                  <input type="text" [(ngModel)]="newFieldSubCode" maxlength="1" class="input-code" />
+                  <label>Wert:</label>
+                  <input type="text" [(ngModel)]="newFieldSubValue" class="input-value" placeholder="Wert" />
+                  <button class="btn-small btn-primary" (click)="addNewField()">Hinzufuegen</button>
+                </div>
+              </div>
+            }
+
+            @for (df of selectedRecord.datafields; track $index; let fi = $index) {
+              <div class="datafield-block" [id]="'datafield-' + fi">
+                <div class="datafield-header">
+                  <span class="tag-badge">{{ df.tag }}</span>
+                  <span class="indicator">Ind1={{ df.ind1 === ' ' ? '_' : df.ind1 }}</span>
+                  <span class="indicator">Ind2={{ df.ind2 === ' ' ? '_' : df.ind2 }}</span>
+                  <button class="btn-remove" (click)="removeDataField(fi)" title="Feld entfernen">x</button>
+                </div>
+                <div class="subfields">
+                  @if (df.gnd_alternatives && df.gnd_alternatives.length > 1) {
+                    <div class="gnd-select-row">
+                      <label class="gnd-select-label">GND-ID auswaehlen:</label>
+                      <select
+                        class="gnd-select"
+                        [ngModel]="getSelectedGndId(df)"
+                        (ngModelChange)="onGndSelect(df, $event)"
+                      >
+                        @for (alt of df.gnd_alternatives; track alt.id) {
+                          <option [value]="alt.id">{{ alt.label }} ({{ alt.id }})</option>
+                        }
+                      </select>
+                    </div>
+                  }
+                  @for (sf of df.subfields; track $index; let si = $index) {
+                    <div class="subfield-row">
+                      <span class="subfield-code">${{ sf.code }}</span>
+                      <input
+                        type="text"
+                        [(ngModel)]="sf.value"
+                        (change)="onSubfieldChange()"
+                        class="subfield-input"
+                      />
+                      <button class="btn-remove-small" (click)="removeSubfield(fi, si)" title="Subfield entfernen">x</button>
+                    </div>
+                  }
+                  <button class="btn-add-sub" (click)="addSubfield(fi)">+ Subfield</button>
+                </div>
+              </div>
+            }
+          </section>
+
+          <!-- Export buttons -->
+          <section class="export-section">
+            <button class="btn-primary" (click)="exportCurrent()">
+              Diesen Record exportieren
+            </button>
+            <button class="btn-primary" (click)="exportAll()">
+              Alle exportieren ({{ records.length }} Records)
+            </button>
+          </section>
+        </main>
+      }
+    </div>
+  }
+</div>
