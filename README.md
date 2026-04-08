@@ -4,6 +4,8 @@ Konvertiert Personendatensaetze aus [FactGrid](https://database.factgrid.de/) (W
 
 FactGrid ISIL: **DE-4218**
 
+**Demo:** https://factgrid2gnd.grid-creators.com/
+
 ## Architektur
 
 ```
